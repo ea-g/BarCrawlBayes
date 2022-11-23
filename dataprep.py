@@ -29,6 +29,7 @@ def main(time_block: Union[float, int] = 10, sample_freq: Union[float, int] = 16
         # grab an example pid
         acc = acc[acc.pid == p]
         acc['time'] = pd.to_datetime(acc.time, unit='ms')
+        acc.drop_duplicates(subset='time', inplace=True)
         acc['sec_group'] = pd.to_datetime(acc.time.dt.strftime('%Y-%m-%d %H:%M:%S'))
         disqual = acc.sec_group.value_counts()[acc.sec_group.value_counts() < sample_freq].index
         acc = acc[~acc.sec_group.isin(disqual)]
@@ -37,6 +38,7 @@ def main(time_block: Union[float, int] = 10, sample_freq: Union[float, int] = 16
         freq_conv = f"{round(1 / sample_freq, 5)}S"
         acc.set_index('time', inplace=True)
         acc = acc.groupby(['sec_group'])[['x', 'y', 'z']].resample(freq_conv).mean().reset_index()
+        acc.dropna(how='any', inplace=True)
         start = acc.sec_group.min() - pd.to_timedelta(1, 's')
         end = acc.sec_group.max() + pd.to_timedelta(1, 's')
 
@@ -99,6 +101,9 @@ def main(time_block: Union[float, int] = 10, sample_freq: Union[float, int] = 16
     # make sure files were moved correctly
     assert set(f for f in os.listdir('./data/train') if f[-3:] == 'npy') == set(train_ids + '.npy'), 'Train move error'
     assert set(f for f in os.listdir('./data/test') if f[-3:] == 'npy') == set(test_ids + '.npy'), 'Test move error'
+    for p in pids:
+        os.remove(f'./data/{p}_y.csv')
+    os.rmdir('./data/accel_data')
 
 
 def combine_y(pids) -> pd.DataFrame:
@@ -117,11 +122,6 @@ def combine_y(pids) -> pd.DataFrame:
     full.index = full.pid + '_' + full.block_id.astype(str)
 
     return full
-
-
-class BarCrawlData:
-    pass
-
 
 
 if __name__ == "__main__":
