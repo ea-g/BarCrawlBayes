@@ -38,6 +38,8 @@ def main(time_block: Union[float, int] = 10, sample_freq: Union[float, int] = 16
         freq_conv = f"{round(1 / sample_freq, 5)}S"
         acc.set_index('time', inplace=True)
         acc = acc.groupby(['sec_group'])[['x', 'y', 'z']].resample(freq_conv).mean().reset_index()
+
+        # remove any nans
         acc.dropna(how='any', inplace=True)
         start = acc.sec_group.min() - pd.to_timedelta(1, 's')
         end = acc.sec_group.max() + pd.to_timedelta(1, 's')
