@@ -7,17 +7,18 @@ import matplotlib.pyplot as plt
 
 
 class BarCrawlData(Dataset):
-    def __init__(self, data_folder,
-                 annotations_file,
+    def __init__(self, data_folder: str,
+                 annotations_file: str,
                  transforms=None,
                  target_dtype=torch.float32,
-                 regression=False,
-                 standard_scale=True,
-                 sample_freq=16
+                 regression: bool = False,
+                 standard_scale: bool = False,
+                 sample_freq: float = 16
                  ):
         self.data_folder = data_folder
         self.data_files = [i for i in os.listdir(self.data_folder) if os.path.splitext(i)[1] == '.npy']
-        self.annotations = pd.read_csv(annotations_file, index_col=0).loc[[os.path.splitext(i)[0] for i in self.data_files], :]
+        self.annotations = pd.read_csv(annotations_file, index_col=0).loc[
+                           [os.path.splitext(i)[0] for i in self.data_files], :]
         self.transforms = transforms
         self.regression = regression
         self.target_dtype = target_dtype
@@ -33,15 +34,18 @@ class BarCrawlData(Dataset):
 
         signal = torch.tensor(np.load(signal_path), dtype=torch.float32)
         label = torch.tensor(label, dtype=self.target_dtype)
+        if self.target_dtype == torch.float32:
+            label = label.reshape(1)
         if self.transforms:
             signal = self.transforms(signal)
         if self.standard_scale:
-            m = signal.mean(0, keepdim=True)
-            std = signal.std(0, keepdim=True)
-            signal -= m
-            signal /= std
+            raise NotImplementedError
+            # m = signal.mean(0, keepdim=True)
+            # std = signal.std(0, keepdim=True)
+            # signal -= m
+            # signal /= std
 
-        return signal, label.reshape(1)
+        return signal, label
 
     def __len__(self):
         return len(self.data_files)
@@ -50,7 +54,7 @@ class BarCrawlData(Dataset):
         dat, lab = self.__getitem__(index)
         start = self.annotations.iloc[index, :].start
         end = self.annotations.iloc[index, :].end
-        times = pd.date_range(start, end, freq=f'{round(1/self.sample_freq, 5)}S')[:-1]
+        times = pd.date_range(start, end, freq=f'{round(1 / self.sample_freq, 5)}S')[:-1]
         item_id = self.annotations.iloc[index, :].name
 
         plt.figure(figsize=(10, 3))
