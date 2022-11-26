@@ -1,4 +1,5 @@
 import numpy as np
+import yaml
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 from torchvision.transforms import Lambda
@@ -75,25 +76,28 @@ def eval_loop(config,
 
 def main():
     load_dotenv()
+    conf_path = './configs/res34_sweep.yaml'
+    # comment out the next two lines to manually set params. also remove config part from `wandb.init()`
+    with open(conf_path) as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
     wandb.login(key=os.getenv('WBKEY'))
-    wandb.init(entity='ea-g', project='BarCrawlBayes')
+    wandb.init(entity='ea-g', project='BarCrawlBayes', config=config)
 
     config = wandb.config  # Initialize config
-    config.batch_size = 256  # input batch size for training (default: 64)
-    config.test_batch_size = 256  # input batch size for testing (default: 1000)
-    config.epochs = 50  # number of epochs to train (default: 10)
-    config.lr = 1e-3  # learning rate
-    config.wd = 1e-4
-    config.no_cuda = False  # disables CUDA training if True
-    config.seed = 4
-    config.log_interval = 10  # how many batches to wait before logging training status
-    config.drop_out = 0.5
-    config.base_filters = 64
-    config.kernel_size = 7
-    config.n_block = 16
-    config.downsample_gap = 2
-    config.increasefilter_gap = 4
-    config.clamp_val = 3
+    # config.batch_size = 256  # input batch size for training (default: 64)
+    # config.test_batch_size = 256  # input batch size for testing (default: 1000)
+    # config.epochs = 50  # number of epochs to train (default: 10)
+    # config.lr = 1e-3  # learning rate
+    # config.weight_decay = 1e-4
+    # config.no_cuda = False  # disables CUDA training if True
+    # config.drop_out = 0.5
+    # config.base_filters = 64
+    # config.kernel_size = 7
+    # config.n_block = 16
+    # config.downsample_gap = 2
+    # config.increasefilter_gap = 4
+    # config.clamp_val = 3
+    # config.pos_weight = 1.5
 
 
 
@@ -113,18 +117,18 @@ def main():
         stride=1,
         n_block=config.n_block,
         groups=1,
-        n_classes=1,
+        n_classes=config.num_classes,
         downsample_gap=config.downsample_gap,
         increasefilter_gap=config.increasefilter_gap,
         drop_out=config.drop_out)
     model.to(device)
 
-    optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.wd)
+    optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
     if config.num_classes > 1:
         loss_func = torch.nn.CrossEntropyLoss(weight=torch.tensor([1., 2.]).to(device))
     else:
-        loss_func = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([1.5]).to(device))
+        loss_func = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([config.pos_weight]).to(device))
     n_epoch = config.epochs
     step = 0
 
