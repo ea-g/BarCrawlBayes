@@ -37,15 +37,14 @@ def main():
     wandb.init(entity='ea-g', project='BarCrawlBayes')
     config = wandb.config  # Initialize config
     config.model_config_path = './configs/model_configs/res18best.yaml'
-    config.batch_size = 128
+    config.batch_size = 256
     config.model_state_path = './model_saves/res18best.h5'
-    config.epochs = 1
-    config.posterior_samples = 1000
-    # params to use
-    # 1) model load path
-    # 2) model training config path
-    # 3) batch size for bnn
+    config.epochs = 80
+    config.posterior_samples = 64
+    config.lr = 0.001
+    config.weight_decay = 0.0001
 
+    # load the pretrained model config
     with open(config.model_config_path) as f:
         model_config = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -71,36 +70,52 @@ def main():
 
     testloader = DataLoader(testing, batch_size=config.batch_size, **kwargs)
 
-
     # define the BNN
     prior = tyxe.priors.IIDPrior(dist.Normal(torch.zeros(1, device=device), torch.ones(1, device=device)),
                                  expose_all=False, hide_module_types=(nn.BatchNorm1d,))
     likelihood = tyxe.likelihoods.Bernoulli(len(trainloader.sampler), event_dim=1)
 
-    guide = partial(tyxe.guides.AutoNormal, init_scale=0.001)
+    # a guide using mean field--pretrained weights used as location and variance is trained
+    guide = partial(tyxe.guides.AutoNormal, init_scale=1e-4, max_guide_scale=0.1,
+                    init_loc_fn=tyxe.guides.PretrainedInitializer.from_net(model), train_loc=False)
     bnn = tyxe.VariationalBNN(model, prior, likelihood, guide)
     pyro.clear_param_store()
-    optim = pyro.optim.AdamW({"lr": 1e-3, "weight_decay": 1e-4})
-    elbos = []
+    optim = pyro.optim.AdamW({"lr": config.lr, "weight_decay": config.weight_decay})
 
-    def callback(bnn, i, e):
-        elbos.append(e)
-        wandb.log({"ELBO": e})
+    # callback for logging stats to wandb
+    def callback(b, i, avg_elbo):
+        loss = 0.
+        preds_full = []
+        gt_full = []
+        b.eval()
+        for x, y in iter(testloader):
+            logits = b.predict(x.to(device), num_predictions=config.posterior_samples)
+            loss += nn.functional.binary_cross_entropy_with_logits(logits, y, reduction='sum')
+            preds_full.append(torch.sigmoid(logits).reshape(-1).cpu().numpy())
+            gt_full.append(y.reshape(-1).cpu().numpy())
+
+        gt_full = np.concatenate(gt_full)
+        preds_full = np.concatenate(preds_full)
+        wandb.log({
+            "Test Accuracy": (preds_full.round() == gt_full).mean(),
+            "Test Loss": loss/len(gt_full),
+            "Test AUC_ROC": roc_auc_score(gt_full, preds_full),
+            "ELBO": avg_elbo
+        })
+        b.train()
 
     wandb.watch(model)
+    # fit the model using Variational inference, saving the end state
     with tyxe.poutine.local_reparameterization():
         bnn.fit(trainloader, optim, config.epochs, callback, device=device)
 
     pyro.get_param_store().save("param_store.pt")
     torch.save(bnn.state_dict(), "state_dict.pt")
 
-    test_predictions = torch.cat([bnn.predict(x.to(device), num_predictions=config.posterior_samples, aggregate=True)
+    test_predictions = torch.cat([bnn.predict(x.to(device), num_predictions=config.posterior_samples, aggregate=False)
                                   for x, _ in iter(testloader)])
-    test_gt = torch.cat([y for _, y in iter(testloader)])
-    print(f"AUC ROC: {roc_auc_score(test_gt.detach().reshape(-1).cpu().numpy(), torch.sigmoid(test_predictions).detach().reshape(-1).cpu().numpy())}")
-    print(f"Accuracy: {(test_gt.detach().reshape(-1).cpu().numpy()==torch.sigmoid(test_predictions).detach().reshape(-1).cpu().numpy().round()).mean()}")
     torch.save(test_predictions.detach().cpu(), "test_predictions.pt")
-    wandb.save("param_stor.pt")
+    wandb.save("param_store.pt")
     wandb.save("state_dict.pt")
     wandb.save("test_predictions.pt")
 
