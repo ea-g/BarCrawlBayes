@@ -42,7 +42,6 @@ def main():
     config.epochs = 80
     config.posterior_samples = 64
     config.lr = 0.001
-    config.weight_decay = 0.0001
 
     # load the pretrained model config
     with open(config.model_config_path) as f:
@@ -76,33 +75,45 @@ def main():
     likelihood = tyxe.likelihoods.Bernoulli(len(trainloader.sampler), event_dim=1)
 
     # a guide using mean field--pretrained weights used as location and variance is trained
-    guide = partial(tyxe.guides.AutoNormal, init_scale=1e-4, max_guide_scale=0.1,
-                    init_loc_fn=tyxe.guides.PretrainedInitializer.from_net(model), train_loc=False)
+    guide = partial(tyxe.guides.AutoNormal,
+                    init_loc_fn=tyxe.guides.PretrainedInitializer.from_net(model),
+                    init_scale=1e-4
+                    )
     bnn = tyxe.VariationalBNN(model, prior, likelihood, guide)
     pyro.clear_param_store()
-    optim = pyro.optim.AdamW({"lr": config.lr, "weight_decay": config.weight_decay})
+    optim = pyro.optim.Adam({"lr": config.lr})
 
     # callback for logging stats to wandb
     def callback(b, i, avg_elbo):
-        loss = 0.
-        preds_full = []
-        gt_full = []
-        b.eval()
-        for x, y in iter(testloader):
-            logits = b.predict(x.to(device), num_predictions=config.posterior_samples)
-            loss += nn.functional.binary_cross_entropy_with_logits(logits, y, reduction='sum')
-            preds_full.append(torch.sigmoid(logits).reshape(-1).cpu().numpy())
-            gt_full.append(y.reshape(-1).cpu().numpy())
+        # evaluating is expensive, do so every 3 epochs
+        if (not i % 3) or (i == config.epochs-1):
+            loss = torch.zeros(1).to(device)
+            preds_full = []
+            gt_full = []
+            b.eval()
+            for x, y in iter(testloader):
+                with torch.no_grad():
+                    logits = b.predict(x.to(device), num_predictions=config.posterior_samples, aggregate=False)
+                    loss += nn.functional.binary_cross_entropy_with_logits(logits.mean(axis=0), y.to(device), reduction='sum')
+                    preds_full.append(torch.sigmoid(logits).cpu().numpy())
+                    gt_full.append(y.reshape(-1).cpu().numpy())
 
-        gt_full = np.concatenate(gt_full)
-        preds_full = np.concatenate(preds_full)
-        wandb.log({
-            "Test Accuracy": (preds_full.round() == gt_full).mean(),
-            "Test Loss": loss/len(gt_full),
-            "Test AUC_ROC": roc_auc_score(gt_full, preds_full),
-            "ELBO": avg_elbo
-        })
-        b.train()
+            gt_full = np.concatenate(gt_full)
+            preds_full = np.concatenate(preds_full, axis=1)
+            roc_auc = roc_auc_score(gt_full, preds_full.mean(axis=0).flatten())
+            wandb.log({
+                "Test Accuracy": (preds_full.mean(axis=0).flatten().round() == gt_full).mean(),
+                "Test Loss": loss/len(gt_full),
+                "Test AUC_ROC": roc_auc,
+                "ELBO": avg_elbo
+            })
+            if roc_auc > 0.865:
+                np.save(f'predictions_{i}.npy', preds_full)
+                wandb.save(f'predictions_{i}.npy')
+                torch.save(b.state_dict(), f"state_dict_{i}.pt")
+                wandb.save(f"state_dict_{i}.pt")
+
+            b.train()
 
     wandb.watch(model)
     # fit the model using Variational inference, saving the end state
@@ -111,13 +122,8 @@ def main():
 
     pyro.get_param_store().save("param_store.pt")
     torch.save(bnn.state_dict(), "state_dict.pt")
-
-    test_predictions = torch.cat([bnn.predict(x.to(device), num_predictions=config.posterior_samples, aggregate=False)
-                                  for x, _ in iter(testloader)])
-    torch.save(test_predictions.detach().cpu(), "test_predictions.pt")
     wandb.save("param_store.pt")
     wandb.save("state_dict.pt")
-    wandb.save("test_predictions.pt")
 
 
 if __name__ == "__main__":
