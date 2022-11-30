@@ -120,10 +120,10 @@ def main():
             })
             # save the best models based on validation loss or auc roc
             if (roc_auc > best['auc_roc']) or (loss/len(gt_full) < best['loss']):
-                np.save(f'predictions_{i}.npy', preds_full)
-                wandb.save(f'predictions_{i}.npy')
-                torch.save(b.state_dict(), f"state_dict_{i}.pt")
-                wandb.save(f"state_dict_{i}.pt")
+                np.save(f'predictions_best.npy', preds_full)
+                wandb.save(f'predictions_best.npy')
+                torch.save(b.state_dict(), f"state_dict_best.pt")
+                wandb.save(f"state_dict_best.pt")
                 if roc_auc > best['auc_roc']:
                     best['auc_roc'] = roc_auc
                 if loss/len(gt_full) < best['loss']:
