@@ -37,13 +37,13 @@ def main():
     wandb.login(key=os.getenv('WBKEY'))
     wandb.init(entity='ea-g', project='BarCrawlBayes')
     config = wandb.config  # Initialize config
-    config.model_config_path = './configs/model_configs/res34best.yaml'
+    config.model_config_path = './configs/model_configs/res18best.yaml'
     config.batch_size = 128
-    config.model_state_path = './model_saves/res34best.h5'
+    config.model_state_path = './model_saves/res18best.h5'
     config.epochs = 80
     config.posterior_samples = 64
     config.lr = 0.0005
-    config.roc_auc_thresh = 0.84
+    config.roc_auc_thresh = 0.845
     config.loc_from_pretrained = True
     config.eval_freq = 3
     config.flipout = True
@@ -92,6 +92,8 @@ def main():
     pyro.clear_param_store()
     optim = pyro.optim.Adam({"lr": config.lr})
 
+    best = {'auc_roc': config.roc_auc_thresh,
+            'loss': 5}
     # callback for logging stats to wandb and evaluating every x epochs
     def callback(b, i, avg_elbo):
         # evaluating is expensive, do so every 3/user defined epochs
@@ -116,11 +118,16 @@ def main():
                 "Test AUC_ROC": roc_auc,
                 "ELBO": avg_elbo
             })
-            if roc_auc > config.roc_auc_thresh:
+            # save the best models based on validation loss or auc roc
+            if (roc_auc > best['auc_roc']) or (loss/len(gt_full) < best['loss']):
                 np.save(f'predictions_{i}.npy', preds_full)
                 wandb.save(f'predictions_{i}.npy')
                 torch.save(b.state_dict(), f"state_dict_{i}.pt")
                 wandb.save(f"state_dict_{i}.pt")
+                if roc_auc > best['auc_roc']:
+                    best['auc_roc'] = roc_auc
+                if loss/len(gt_full) < best['loss']:
+                    best['loss'] = loss/len(gt_full)
 
             b.train()
 
@@ -134,6 +141,7 @@ def main():
     with context():
         bnn.fit(trainloader, optim, config.epochs, callback, device=device)
 
+    # save the final model
     pyro.get_param_store().save("param_store.pt")
     torch.save(bnn.state_dict(), "state_dict.pt")
     wandb.save("param_store.pt")
