@@ -1,6 +1,5 @@
 import pyro
 import pyro.distributions as dist
-import pyro.infer.autoguide as ag
 import tyxe
 import wandb
 import yaml
@@ -65,7 +64,7 @@ def main():
                                                                     max=model_config['clamp_val']['value'])),
                             target_dtype=torch.long if model_config['num_classes']['value'] > 1 else torch.float32)
 
-    trainloader = DataLoader(training, batch_size=config.batch_size, **kwargs)
+    trainloader = DataLoader(training, batch_size=config.batch_size, shuffle=True, **kwargs)
 
     testing = BarCrawlData('./data/test', './data/y_data_full.csv',
                            transforms=Lambda(lambda x: torch.clamp(x, min=-model_config['clamp_val']['value'],
@@ -120,10 +119,12 @@ def main():
             })
             # save the best models based on validation loss or auc roc
             if (roc_auc > best['auc_roc']) or (loss/len(gt_full) < best['loss']):
-                np.save(f'predictions_best.npy', preds_full)
-                wandb.save(f'predictions_best.npy')
-                torch.save(b.state_dict(), f"state_dict_best.pt")
-                wandb.save(f"state_dict_best.pt")
+                np.save('predictions_best.npy', preds_full)
+                wandb.save('predictions_best.npy')
+                torch.save(b.state_dict(), "state_dict_best.pt")
+                wandb.save("state_dict_best.pt")
+                np.save('gt_full.npy', gt_full)
+                wandb.save('gt_full.npy')
                 if roc_auc > best['auc_roc']:
                     best['auc_roc'] = roc_auc
                 if loss/len(gt_full) < best['loss']:
