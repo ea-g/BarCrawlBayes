@@ -11,7 +11,8 @@
 
 ## Setup 
 
-1. download the barcrawl data set from uci ml and extract the contents into the data folder. Your directory structure 
+1. Download the [Bar Crawl data set from the UCI machine learn repository](https://archive.ics.uci.edu/ml/datasets/Bar+Crawl%3A+Detecting+Heavy+Drinking) 
+and extract the contents into the data folder. Your directory structure 
 should follow:
 
 ```
