@@ -90,8 +90,8 @@ def main():
         guide = partial(tyxe.guides.AutoNormal)
     bnn = tyxe.VariationalBNN(model, prior, likelihood, guide)
     bnn.load_state_dict(torch.load('./model_saves/BNNResNet18.pt', map_location=device), strict=False)
-    pyro.clear_param_store()
     optim = pyro.optim.Adam({"lr": config.lr})
+    pyro.get_param_store().load('./model_saves/param_store.pt', map_location=device)
 
     best = {'auc_roc': config.roc_auc_thresh,
             'loss': 5}
@@ -113,6 +113,7 @@ def main():
             gt_full = np.concatenate(gt_full)
             preds_full = np.concatenate(preds_full, axis=1)
             roc_auc = roc_auc_score(gt_full, preds_full.mean(axis=0).flatten())
+            print(roc_auc)
             wandb.log({
                 "Test Accuracy": (preds_full.mean(axis=0).flatten().round() == gt_full).mean(),
                 "Test Loss": loss/len(gt_full),
