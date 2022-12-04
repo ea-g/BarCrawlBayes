@@ -1,5 +1,7 @@
 # BayesBarCrawl
 
+[Training Logs](https://wandb.ai/ea-g/BarCrawlBayes?workspace=user-ea-g)
+
 ## Prerequisites
 - [poetry](https://python-poetry.org/)
 - Python ~3.9
@@ -47,7 +49,9 @@ setup separately using the sweep configs located in `configs`. Once setup, they 
 - `trainbayes.py`: training script for Bayesian neural networks. This script finetunes FNNs into BNNs initializing 
 variational distributions based on the pretrained weights from FNNs. Paths per network will need to be edited in the 
 file. For an example run, see [this notebook](https://colab.research.google.com/drive/1fiYxo1FXdUPLf8GzyRQloaSg0ts_5GTV?usp=sharing)
-
+- `eval.py`: scores models and plots metrics
+- `bayesian_anova.py`: simple ANOVA bayesian style for comparing the spread of samples from the posterior predictive 
+distributions.
 
 ## Disclaimer
 
