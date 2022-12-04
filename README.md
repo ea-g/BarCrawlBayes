@@ -1,4 +1,4 @@
-# BayesBarCrawl
+# BarCrawlBayes
 
 [Training Logs](https://wandb.ai/ea-g/BarCrawlBayes?workspace=user-ea-g)
 
@@ -6,6 +6,7 @@
 - [poetry](https://python-poetry.org/)
 - Python ~3.9
 - a gpu or google colab
+- g++ for pymc or google colab
 - a [Weights and Biases account](https://wandb.ai/) 
 
 ## Setup 
