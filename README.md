@@ -2,6 +2,11 @@
 
 [Training Logs](https://wandb.ai/ea-g/BarCrawlBayes?workspace=user-ea-g)
 
+## Abstract
+
+In 2019, Killian et al. examined intoxication classification based on smart phone accelerometer signal data to explore the viability of just-in-time-adaptive interventions (JITAIs) to curb drinking behavior from nonsensitive data. I review this problem with more expressive convolutional neural network models under frequentist
+and Bayesian formulations using minimally processed signals. I show 1) frequentist and Bayesian convolutional neural networks outperform Killian et al.’s methods, 2) Bayesian methods increase understanding of predictive uncertainty by lowering expected calibration error (ECE) over frequentist networks, and 3) network architecture and depth reduces the spread of samples from the posterior predictive distribution from Bayesian neural networks, lowering predictive uncertainty on this problem’s test data.
+
 ## Prerequisites
 - [poetry](https://python-poetry.org/)
 - Python ~3.9
